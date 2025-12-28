@@ -321,6 +321,22 @@
             opacity: 0;
         }
         
+        .kiosk-hint {
+            margin-top: 12px;
+            padding: 8px;
+            background: rgba(255, 107, 107, 0.1);
+            border: 1px solid rgba(255, 107, 107, 0.3);
+            border-radius: 6px;
+            font-size: 12px;
+            color: #ff6b6b;
+            text-align: center;
+            display: none;
+        }
+        
+        .kiosk-hint.visible {
+            display: block;
+        }
+        
         .trail {
             position: absolute;
             pointer-events: none;
@@ -396,13 +412,21 @@
             <label for="cornerCelebration">Эффект при попадании в угол</label>
         </div>
         
+        <div class="checkbox-group">
+            <input type="checkbox" id="hideToggleBtn">
+            <label for="hideToggleBtn">Скрыть кнопку настроек</label>
+        </div>
+        
         <button class="btn btn-primary" id="resetBtn">Сбросить</button>
         <button class="btn btn-secondary" id="hideBtn">Скрыть панель (ESC)</button>
+        
+        <div class="kiosk-hint">Двойной клик — вернуть панель</div>
     </div>
     
     <button class="toggle-btn" id="toggleBtn">⚙️</button>
     
     <div class="hint" id="hint">Нажми ESC чтобы показать/скрыть панель</div>
+    <div class="hint" id="kioskHint" style="display:none; bottom: 50px;">Режим киоска: двойной клик для панели</div>
 
     <script>
         const defaultLogo = `data:image/svg+xml,${encodeURIComponent(`
@@ -425,6 +449,7 @@
                 this.colorChange = true;
                 this.trailEffect = false;
                 this.cornerCelebration = true;
+                this.hideToggle = false;
                 this.trails = [];
                 this.imageSrc = defaultLogo;
                 this.isVideo = false;
@@ -486,6 +511,18 @@
                 const toggleBtn = document.getElementById('toggleBtn');
                 const controls = document.getElementById('controls');
                 const bgButtons = document.querySelectorAll('.bg-btn');
+                
+                const hideToggleBtn = document.getElementById('hideToggleBtn');
+                const kioskHint = document.querySelector('.kiosk-hint');
+                
+                // Hide toggle button option
+                hideToggleBtn.addEventListener('change', (e) => {
+                    this.hideToggle = e.target.checked;
+                    kioskHint.classList.toggle('visible', this.hideToggle);
+                    if (this.hideToggle) {
+                        toggleBtn.style.display = 'none';
+                    }
+                });
                 
                 // Background buttons
                 bgButtons.forEach(btn => {
@@ -566,6 +603,13 @@
                         this.toggleControls(isHidden);
                     }
                 });
+                
+                // Double click to show controls when toggle button is hidden
+                document.addEventListener('dblclick', (e) => {
+                    if (this.hideToggle && controls.classList.contains('hidden')) {
+                        this.toggleControls(true);
+                    }
+                });
             }
             
             toggleControls(show) {
@@ -577,7 +621,9 @@
                     toggleBtn.classList.remove('visible');
                 } else {
                     controls.classList.add('hidden');
-                    toggleBtn.classList.add('visible');
+                    if (!this.hideToggle) {
+                        toggleBtn.classList.add('visible');
+                    }
                 }
             }
             
