@@ -1,0 +1,745 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DVD Bounce Overlay</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=VT323&display=swap');
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'VT323', monospace;
+            min-height: 100vh;
+            overflow: hidden;
+            color: #fff;
+        }
+        
+        body.transparent {
+            background: transparent;
+        }
+        
+        body.greenscreen {
+            background: #00ff00;
+        }
+        
+        body.bluescreen {
+            background: #0000ff;
+        }
+        
+        body.magenta {
+            background: #ff00ff;
+        }
+        
+        .canvas-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+        }
+        
+        .bouncing-element {
+            position: absolute;
+            transition: filter 0.1s ease;
+            image-rendering: auto;
+        }
+        
+        .bouncing-element img,
+        .bouncing-element video {
+            max-width: 150px;
+            max-height: 150px;
+            display: block;
+            pointer-events: none;
+        }
+        
+        .controls {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            z-index: 100;
+            background: rgba(20, 20, 40, 0.95);
+            border: 2px solid #444;
+            border-radius: 12px;
+            padding: 20px;
+            max-width: 320px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+            transition: transform 0.3s ease, opacity 0.3s ease;
+        }
+        
+        .controls.hidden {
+            transform: translateX(-120%);
+            opacity: 0;
+            pointer-events: none;
+        }
+        
+        .controls h1 {
+            font-size: 24px;
+            margin-bottom: 16px;
+            background: linear-gradient(90deg, #ff6b6b, #feca57, #48dbfb, #ff9ff3);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            letter-spacing: 2px;
+        }
+        
+        .upload-zone {
+            border: 2px dashed #555;
+            border-radius: 8px;
+            padding: 16px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-bottom: 16px;
+        }
+        
+        .upload-zone:hover {
+            border-color: #ff6b6b;
+            background: rgba(255, 107, 107, 0.1);
+        }
+        
+        .upload-zone.dragover {
+            border-color: #48dbfb;
+            background: rgba(72, 219, 251, 0.2);
+        }
+        
+        .upload-zone input {
+            display: none;
+        }
+        
+        .upload-icon {
+            font-size: 36px;
+            margin-bottom: 4px;
+        }
+        
+        .upload-text {
+            font-size: 14px;
+            color: #888;
+        }
+        
+        .section-title {
+            font-size: 12px;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin: 16px 0 8px 0;
+            padding-bottom: 4px;
+            border-bottom: 1px solid #333;
+        }
+        
+        .bg-buttons {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+        
+        .bg-btn {
+            padding: 8px 4px;
+            border: 2px solid #444;
+            border-radius: 6px;
+            cursor: pointer;
+            font-family: 'VT323', monospace;
+            font-size: 11px;
+            text-transform: uppercase;
+            transition: all 0.2s ease;
+        }
+        
+        .bg-btn.transparent {
+            background: repeating-conic-gradient(#333 0% 25%, #222 0% 50%) 50% / 10px 10px;
+            color: #fff;
+        }
+        
+        .bg-btn.greenscreen {
+            background: #00ff00;
+            color: #000;
+        }
+        
+        .bg-btn.bluescreen {
+            background: #0000ff;
+            color: #fff;
+        }
+        
+        .bg-btn.magenta {
+            background: #ff00ff;
+            color: #fff;
+        }
+        
+        .bg-btn:hover {
+            transform: scale(1.05);
+        }
+        
+        .bg-btn.active {
+            border-color: #fff;
+            box-shadow: 0 0 10px rgba(255, 255, 255, 0.3);
+        }
+        
+        .control-group {
+            margin-bottom: 12px;
+        }
+        
+        .control-group label {
+            display: block;
+            margin-bottom: 4px;
+            font-size: 12px;
+            color: #aaa;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .control-group input[type="range"] {
+            width: 100%;
+            height: 6px;
+            -webkit-appearance: none;
+            background: #333;
+            border-radius: 3px;
+            outline: none;
+        }
+        
+        .control-group input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 16px;
+            height: 16px;
+            background: linear-gradient(135deg, #ff6b6b, #feca57);
+            border-radius: 50%;
+            cursor: pointer;
+        }
+        
+        .control-row {
+            display: flex;
+            gap: 12px;
+        }
+        
+        .control-row .control-group {
+            flex: 1;
+        }
+        
+        .value-display {
+            text-align: right;
+            font-size: 14px;
+            color: #48dbfb;
+            margin-top: 2px;
+        }
+        
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+        
+        .checkbox-group input[type="checkbox"] {
+            width: 16px;
+            height: 16px;
+            accent-color: #ff6b6b;
+            cursor: pointer;
+        }
+        
+        .checkbox-group label {
+            font-size: 13px;
+            color: #aaa;
+            cursor: pointer;
+        }
+        
+        .btn {
+            width: 100%;
+            padding: 10px;
+            font-family: 'VT323', monospace;
+            font-size: 16px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #ff6b6b, #ee5a24);
+            color: #fff;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(255, 107, 107, 0.4);
+        }
+        
+        .btn-secondary {
+            background: #333;
+            color: #fff;
+            margin-top: 6px;
+        }
+        
+        .btn-secondary:hover {
+            background: #444;
+        }
+        
+        .toggle-btn {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            z-index: 101;
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            background: rgba(20, 20, 40, 0.95);
+            border: 2px solid #444;
+            color: #fff;
+            font-size: 20px;
+            cursor: pointer;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            transition: opacity 0.3s ease;
+        }
+        
+        .toggle-btn.visible {
+            display: flex;
+        }
+        
+        .hint {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.8);
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 14px;
+            color: #888;
+            opacity: 1;
+            transition: opacity 0.5s ease;
+            pointer-events: none;
+        }
+        
+        .hint.hidden {
+            opacity: 0;
+        }
+        
+        .trail {
+            position: absolute;
+            pointer-events: none;
+            opacity: 0.3;
+            transition: opacity 0.5s ease;
+        }
+        
+        .corner-flash {
+            position: fixed;
+            width: 100vw;
+            height: 100vh;
+            top: 0;
+            left: 0;
+            pointer-events: none;
+            z-index: 200;
+            background: radial-gradient(circle, rgba(255, 255, 255, 0.6) 0%, transparent 60%);
+            opacity: 0;
+            animation: cornerFlash 0.4s ease-out;
+        }
+        
+        @keyframes cornerFlash {
+            0% { opacity: 1; }
+            100% { opacity: 0; }
+        }
+    </style>
+</head>
+<body class="transparent">
+    <div class="canvas-container" id="canvas"></div>
+    
+    <div class="controls" id="controls">
+        <h1>DVD OVERLAY</h1>
+        
+        <div class="upload-zone" id="uploadZone">
+            <input type="file" id="fileInput" accept="image/*,video/mp4,video/webm">
+            <div class="upload-icon">📀</div>
+            <div class="upload-text">Загрузить GIF / PNG / MP4</div>
+        </div>
+        
+        <div class="section-title">Фон</div>
+        <div class="bg-buttons">
+            <button class="bg-btn transparent active" data-bg="transparent">Прозр.</button>
+            <button class="bg-btn greenscreen" data-bg="greenscreen">Green</button>
+            <button class="bg-btn bluescreen" data-bg="bluescreen">Blue</button>
+            <button class="bg-btn magenta" data-bg="magenta">Magenta</button>
+        </div>
+        
+        <div class="section-title">Настройки</div>
+        <div class="control-row">
+            <div class="control-group">
+                <label>Скорость</label>
+                <input type="range" id="speedRange" min="1" max="15" value="4">
+                <div class="value-display" id="speedValue">4</div>
+            </div>
+            <div class="control-group">
+                <label>Размер</label>
+                <input type="range" id="sizeRange" min="50" max="400" value="150">
+                <div class="value-display" id="sizeValue">150px</div>
+            </div>
+        </div>
+        
+        <div class="checkbox-group">
+            <input type="checkbox" id="colorChange" checked>
+            <label for="colorChange">Менять цвет при отскоке</label>
+        </div>
+        
+        <div class="checkbox-group">
+            <input type="checkbox" id="trailEffect">
+            <label for="trailEffect">След за объектом</label>
+        </div>
+        
+        <div class="checkbox-group">
+            <input type="checkbox" id="cornerCelebration" checked>
+            <label for="cornerCelebration">Эффект при попадании в угол</label>
+        </div>
+        
+        <button class="btn btn-primary" id="resetBtn">Сбросить</button>
+        <button class="btn btn-secondary" id="hideBtn">Скрыть панель (ESC)</button>
+    </div>
+    
+    <button class="toggle-btn" id="toggleBtn">⚙️</button>
+    
+    <div class="hint" id="hint">Нажми ESC чтобы показать/скрыть панель</div>
+
+    <script>
+        const defaultLogo = `data:image/svg+xml,${encodeURIComponent(`
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 100">
+                <text x="100" y="55" font-family="Arial Black" font-size="36" fill="white" text-anchor="middle" font-weight="bold">DVD</text>
+                <ellipse cx="100" cy="75" rx="50" ry="8" fill="none" stroke="white" stroke-width="2"/>
+            </svg>
+        `)}`;
+
+        class DVDBounce {
+            constructor() {
+                this.canvas = document.getElementById('canvas');
+                this.element = null;
+                this.x = 100;
+                this.y = 100;
+                this.vx = 4;
+                this.vy = 4;
+                this.size = 150;
+                this.hue = 0;
+                this.colorChange = true;
+                this.trailEffect = false;
+                this.cornerCelebration = true;
+                this.trails = [];
+                this.imageSrc = defaultLogo;
+                this.isVideo = false;
+                
+                this.init();
+            }
+            
+            init() {
+                this.createBouncingElement();
+                this.setupEventListeners();
+                this.animate();
+                
+                // Hide hint after 5 seconds
+                setTimeout(() => {
+                    document.getElementById('hint').classList.add('hidden');
+                }, 5000);
+            }
+            
+            createBouncingElement() {
+                if (this.element) {
+                    this.element.remove();
+                }
+                
+                this.element = document.createElement('div');
+                this.element.className = 'bouncing-element';
+                
+                if (this.isVideo) {
+                    const video = document.createElement('video');
+                    video.src = this.imageSrc;
+                    video.autoplay = true;
+                    video.loop = true;
+                    video.muted = true;
+                    video.playsInline = true;
+                    video.style.maxWidth = this.size + 'px';
+                    video.style.maxHeight = this.size + 'px';
+                    this.element.appendChild(video);
+                } else {
+                    const img = document.createElement('img');
+                    img.src = this.imageSrc;
+                    img.style.maxWidth = this.size + 'px';
+                    img.style.maxHeight = this.size + 'px';
+                    this.element.appendChild(img);
+                }
+                
+                this.canvas.appendChild(this.element);
+                this.updatePosition();
+            }
+            
+            setupEventListeners() {
+                const uploadZone = document.getElementById('uploadZone');
+                const fileInput = document.getElementById('fileInput');
+                const speedRange = document.getElementById('speedRange');
+                const sizeRange = document.getElementById('sizeRange');
+                const colorChange = document.getElementById('colorChange');
+                const trailEffect = document.getElementById('trailEffect');
+                const cornerCelebration = document.getElementById('cornerCelebration');
+                const resetBtn = document.getElementById('resetBtn');
+                const hideBtn = document.getElementById('hideBtn');
+                const toggleBtn = document.getElementById('toggleBtn');
+                const controls = document.getElementById('controls');
+                const bgButtons = document.querySelectorAll('.bg-btn');
+                
+                // Background buttons
+                bgButtons.forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        bgButtons.forEach(b => b.classList.remove('active'));
+                        btn.classList.add('active');
+                        document.body.className = btn.dataset.bg;
+                    });
+                });
+                
+                // Upload events
+                uploadZone.addEventListener('click', () => fileInput.click());
+                uploadZone.addEventListener('dragover', (e) => {
+                    e.preventDefault();
+                    uploadZone.classList.add('dragover');
+                });
+                uploadZone.addEventListener('dragleave', () => {
+                    uploadZone.classList.remove('dragover');
+                });
+                uploadZone.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    uploadZone.classList.remove('dragover');
+                    const file = e.dataTransfer.files[0];
+                    if (file) this.handleFile(file);
+                });
+                
+                fileInput.addEventListener('change', (e) => {
+                    const file = e.target.files[0];
+                    if (file) this.handleFile(file);
+                });
+                
+                // Controls
+                speedRange.addEventListener('input', (e) => {
+                    const speed = parseInt(e.target.value);
+                    document.getElementById('speedValue').textContent = speed;
+                    const direction = { x: Math.sign(this.vx), y: Math.sign(this.vy) };
+                    this.vx = speed * direction.x;
+                    this.vy = speed * direction.y;
+                });
+                
+                sizeRange.addEventListener('input', (e) => {
+                    this.size = parseInt(e.target.value);
+                    document.getElementById('sizeValue').textContent = this.size + 'px';
+                    const media = this.element.querySelector('img, video');
+                    if (media) {
+                        media.style.maxWidth = this.size + 'px';
+                        media.style.maxHeight = this.size + 'px';
+                    }
+                });
+                
+                colorChange.addEventListener('change', (e) => {
+                    this.colorChange = e.target.checked;
+                    if (!this.colorChange) {
+                        this.element.style.filter = 'none';
+                    }
+                });
+                
+                trailEffect.addEventListener('change', (e) => {
+                    this.trailEffect = e.target.checked;
+                    if (!this.trailEffect) this.clearTrails();
+                });
+                
+                cornerCelebration.addEventListener('change', (e) => {
+                    this.cornerCelebration = e.target.checked;
+                });
+                
+                resetBtn.addEventListener('click', () => {
+                    this.x = window.innerWidth / 2 - this.size / 2;
+                    this.y = window.innerHeight / 2 - this.size / 2;
+                });
+                
+                hideBtn.addEventListener('click', () => this.toggleControls(false));
+                toggleBtn.addEventListener('click', () => this.toggleControls(true));
+                
+                document.addEventListener('keydown', (e) => {
+                    if (e.key === 'Escape') {
+                        const isHidden = controls.classList.contains('hidden');
+                        this.toggleControls(isHidden);
+                    }
+                });
+            }
+            
+            toggleControls(show) {
+                const controls = document.getElementById('controls');
+                const toggleBtn = document.getElementById('toggleBtn');
+                
+                if (show) {
+                    controls.classList.remove('hidden');
+                    toggleBtn.classList.remove('visible');
+                } else {
+                    controls.classList.add('hidden');
+                    toggleBtn.classList.add('visible');
+                }
+            }
+            
+            handleFile(file) {
+                const url = URL.createObjectURL(file);
+                this.isVideo = file.type.startsWith('video/');
+                this.imageSrc = url;
+                this.createBouncingElement();
+            }
+            
+            updatePosition() {
+                this.element.style.left = this.x + 'px';
+                this.element.style.top = this.y + 'px';
+            }
+            
+            changeColor() {
+                if (!this.colorChange) return;
+                this.hue = (this.hue + 50) % 360;
+                this.element.style.filter = `hue-rotate(${this.hue}deg) drop-shadow(0 0 15px hsla(${this.hue}, 100%, 50%, 0.7))`;
+            }
+            
+            createTrail() {
+                if (!this.trailEffect) return;
+                
+                const trail = document.createElement('div');
+                trail.className = 'trail';
+                trail.innerHTML = this.element.innerHTML;
+                trail.style.left = this.x + 'px';
+                trail.style.top = this.y + 'px';
+                trail.style.filter = this.element.style.filter;
+                
+                const media = trail.querySelector('img, video');
+                if (media) {
+                    media.style.maxWidth = this.size + 'px';
+                    media.style.maxHeight = this.size + 'px';
+                }
+                
+                this.canvas.appendChild(trail);
+                this.trails.push(trail);
+                
+                setTimeout(() => {
+                    trail.style.opacity = '0';
+                    setTimeout(() => trail.remove(), 500);
+                    this.trails = this.trails.filter(t => t !== trail);
+                }, 80);
+                
+                if (this.trails.length > 15) {
+                    const oldTrail = this.trails.shift();
+                    oldTrail.remove();
+                }
+            }
+            
+            clearTrails() {
+                this.trails.forEach(trail => trail.remove());
+                this.trails = [];
+            }
+            
+            celebrateCorner() {
+                if (!this.cornerCelebration) return;
+                
+                const flash = document.createElement('div');
+                flash.className = 'corner-flash';
+                document.body.appendChild(flash);
+                setTimeout(() => flash.remove(), 400);
+                
+                for (let i = 0; i < 25; i++) {
+                    setTimeout(() => this.createConfetti(), i * 15);
+                }
+            }
+            
+            createConfetti() {
+                const confetti = document.createElement('div');
+                confetti.style.cssText = `
+                    position: fixed;
+                    width: 8px;
+                    height: 8px;
+                    background: hsl(${Math.random() * 360}, 100%, 50%);
+                    left: ${this.x + this.size / 2}px;
+                    top: ${this.y + this.size / 2}px;
+                    pointer-events: none;
+                    z-index: 1000;
+                    border-radius: ${Math.random() > 0.5 ? '50%' : '0'};
+                `;
+                
+                document.body.appendChild(confetti);
+                
+                const angle = Math.random() * Math.PI * 2;
+                const velocity = 4 + Math.random() * 8;
+                const vx = Math.cos(angle) * velocity;
+                let vy = Math.sin(angle) * velocity;
+                let x = this.x + this.size / 2;
+                let y = this.y + this.size / 2;
+                let opacity = 1;
+                
+                const animateConfetti = () => {
+                    x += vx;
+                    vy += 0.3;
+                    y += vy;
+                    opacity -= 0.025;
+                    
+                    confetti.style.left = x + 'px';
+                    confetti.style.top = y + 'px';
+                    confetti.style.opacity = opacity;
+                    
+                    if (opacity > 0) {
+                        requestAnimationFrame(animateConfetti);
+                    } else {
+                        confetti.remove();
+                    }
+                };
+                
+                requestAnimationFrame(animateConfetti);
+            }
+            
+            animate() {
+                const rect = this.element.getBoundingClientRect();
+                const width = rect.width || this.size;
+                const height = rect.height || this.size;
+                
+                let hitX = false;
+                let hitY = false;
+                
+                if (this.x + width >= window.innerWidth) {
+                    this.x = window.innerWidth - width;
+                    this.vx = -Math.abs(this.vx);
+                    hitX = true;
+                } else if (this.x <= 0) {
+                    this.x = 0;
+                    this.vx = Math.abs(this.vx);
+                    hitX = true;
+                }
+                
+                if (this.y + height >= window.innerHeight) {
+                    this.y = window.innerHeight - height;
+                    this.vy = -Math.abs(this.vy);
+                    hitY = true;
+                } else if (this.y <= 0) {
+                    this.y = 0;
+                    this.vy = Math.abs(this.vy);
+                    hitY = true;
+                }
+                
+                if (hitX || hitY) {
+                    this.changeColor();
+                    if (hitX && hitY) {
+                        this.celebrateCorner();
+                    }
+                }
+                
+                if (this.trailEffect && Math.random() > 0.6) {
+                    this.createTrail();
+                }
+                
+                this.x += this.vx;
+                this.y += this.vy;
+                this.updatePosition();
+                
+                requestAnimationFrame(() => this.animate());
+            }
+        }
+        
+        const dvd = new DVDBounce();
+    </script>
+</body>
+</html>
